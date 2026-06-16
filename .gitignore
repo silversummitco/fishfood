@@ -1,0 +1,15 @@
+# Virtualenv
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Output / artifacts
+*.png
+*.jpg
+*.gif
+*.mp4
+*.csv
+benchmark_*.txt
