@@ -1,0 +1,102 @@
+Fish Food Community License (FFCL) v1.0
+Copyright (c) 2026 Silver Summit Co. ( https://github.com/silversummitco )
+All rights reserved.
+
+The "Software" is the Fish Food algorithm and all source code, documentation,
+assets, and other materials in this repository, together with any derivative
+works of them.
+
+The "Author" is the copyright holder named above. The Author retains all
+intellectual property rights in the Software at all times. This license grants
+permission to use the Software under the conditions below; it does NOT transfer,
+assign, or sell ownership of the Software or of any idea, method, or algorithm
+embodied in it.
+
+--------------------------------------------------------------------------------
+1. GRANT FOR NON-COMMERCIAL USE
+--------------------------------------------------------------------------------
+Subject to the conditions in this license, the Author grants you a worldwide,
+royalty-free, non-exclusive license to use, run, study, copy, modify, and
+distribute the Software and derivative works of it FOR NON-COMMERCIAL PURPOSES,
+free of charge.
+
+"Non-Commercial Purposes" means any use that is not primarily intended for or
+directed toward commercial advantage or monetary compensation. Personal
+projects, research, education, evaluation, and hobby use are Non-Commercial.
+
+--------------------------------------------------------------------------------
+2. ATTRIBUTION (REQUIRED FOR ALL USE)
+--------------------------------------------------------------------------------
+Any use, copy, distribution, or derivative work of the Software must:
+  (a) retain this license file and all copyright and authorship notices; and
+  (b) give clear, visible credit to the Author as the originator of the Fish
+      Food algorithm, including a link to the original repository
+      ( https://github.com/silversummitco/fishfood ) in any documentation,
+      "about" screen, credits, README, or comparable place reasonably visible
+      to end users.
+
+--------------------------------------------------------------------------------
+3. COMMERCIAL OR PROFIT-MAKING USE (PERMISSION REQUIRED)
+--------------------------------------------------------------------------------
+If you wish to use the Software, or any derivative work, idea, method, or
+algorithm embodied in it, in any way that is intended for or results in
+commercial advantage, revenue, or profit -- including but not limited to
+selling, licensing, hosting as a paid or ad-supported service, bundling into a
+commercial product, or use within a for-profit organization's revenue-
+generating operations -- then BEFORE such use you must:
+
+  (a) ASK PERMISSION: obtain the Author's prior written permission;
+  (b) CREDIT: give attribution to the Author as described in Section 2; and
+  (c) SHARE PROFIT: agree with the Author, in writing, on a fair share of the
+      profit or revenue derived from that use, to be paid to the Author.
+
+Commercial or profit-making use without a written agreement satisfying (a),
+(b), and (c) is not licensed and is prohibited.
+
+To request permission, open an issue at the repository above or contact the
+Author through the Silver Summit Co. account.
+
+--------------------------------------------------------------------------------
+4. NOTICES AND MARKINGS
+--------------------------------------------------------------------------------
+You may not remove, alter, or obscure any authorship, copyright, trademark, or
+attribution notices in the Software. Modified files should carry a prominent
+notice stating that you changed them and the date of change.
+
+--------------------------------------------------------------------------------
+5. RESERVATION OF RIGHTS
+--------------------------------------------------------------------------------
+All rights not expressly granted are reserved by the Author. The Author may
+offer the Software under separate commercial terms to any party. Nothing in this
+license limits the Author's own rights to use, license, or commercialize the
+Software in any way.
+
+--------------------------------------------------------------------------------
+6. TERMINATION
+--------------------------------------------------------------------------------
+Any breach of this license automatically terminates the rights granted to you
+under it. Upon termination you must stop using and distributing the Software.
+Sections 2, 3 (as to past use), 5, 7, and 8 survive termination.
+
+--------------------------------------------------------------------------------
+7. DISCLAIMER OF WARRANTY
+--------------------------------------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+--------------------------------------------------------------------------------
+8. LIMITATION OF LIABILITY
+--------------------------------------------------------------------------------
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+END OF TERMS
+--------------------------------------------------------------------------------
+NOTE: This is a custom, source-available license, not an OSI-approved open
+source license (it restricts commercial use). It was drafted as a starting
+point and is not legal advice. For anything you intend to rely on or enforce,
+have a lawyer review it and insert your full legal name/entity where indicated.
