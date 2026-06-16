@@ -13,3 +13,7 @@ __pycache__/
 *.mp4
 *.csv
 benchmark_*.txt
+
+# ...but keep the committed demo media in docs/
+!docs/*.gif
+!docs/*.png

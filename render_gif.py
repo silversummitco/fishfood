@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Fish Food - https://github.com/silversummitco/fishfood
+# Copyright (c) 2026 Silver Summit Co.  Licensed under the Fish Food Community
+# License (FFCL) v1.0 - see the LICENSE file.
 """Render a Fish Food run to an animated GIF (headless, no display needed).
 
 Reuses the Simulation from fish_food.py and draws each sampled frame with
@@ -162,9 +165,17 @@ def main() -> int:
     p.add_argument(
         "--hold", type=int, default=18, help="extra frames on the final image"
     )
+    p.add_argument(
+        "--pellets",
+        type=int,
+        default=None,
+        help="override pellet count (e.g. a smaller value for a short demo clip)",
+    )
     args = p.parse_args()
 
     cfg = Config()
+    if args.pellets is not None:
+        cfg.n_pellets = args.pellets
     render(
         cfg,
         args.seed,
