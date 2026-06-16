@@ -145,4 +145,4 @@ any **commercial or profit-making use requires prior written permission,
 credit, and a profit-share** agreement with the author. This is not an
 OSI-approved open-source license, and the license text is not legal advice.
 
-© 2026 Silver Summit Co.
+© 2026 SilverSummitCo LLC

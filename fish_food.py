@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # Fish Food - https://github.com/silversummitco/fishfood
-# Copyright (c) 2026 Silver Summit Co.  Licensed under the Fish Food Community
+# Copyright (c) 2026 SilverSummitCo LLC.  Licensed under the Fish Food Community
 # License (FFCL) v1.0 - see the LICENSE file. Free for non-commercial use with
 # attribution; commercial/profit use requires permission and a profit-share.
 """Fish Food - an agent-based pond-feeding simulator.
 
-The idea (see AGENTS.md for the full story): a fixed handful of fish-food
+The idea: a fixed handful of fish-food
 pellets is dropped in the center of a pond. A heterogeneous school of fish
 (big fast Koi, juveniles, goldfish, and hundreds of tiny minnows) swarm the
 clump. Their motion both *eats* the pellets and *stirs the water*, advecting
@@ -38,14 +38,15 @@ import statistics
 import sys
 import time
 from dataclasses import dataclass, field
+from typing import final
 
 import numpy as np
 
 # --------------------------------------------------------------------------
 # Configuration
 # --------------------------------------------------------------------------
-# Units are meters and seconds. Defaults are the "first guesses" from
-# AGENTS.md; everything here is meant to be tuned.
+# Units are meters and seconds. Defaults are first-guess values; everything
+# here is meant to be tuned (see the README's "Tuning" section).
 
 
 @dataclass
@@ -167,6 +168,7 @@ class Config:
 # --------------------------------------------------------------------------
 
 
+@final
 class Simulation:
     """Vectorized pellet + fish state. One instance == one pond run."""
 
@@ -611,10 +613,15 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
         eaten = total - sim.alive_count
         secs = sim.t
         mmss = f"{int(secs) // 60}:{int(secs) % 60:02d}"
-        screen.blit(
-            big.render(f"t = {mmss}   ({secs:5.1f}s)", True, (230, 230, 230)),
-            (pad, hud_y),
-        )
+        # Top line: the running clock, or the DONE banner once finished.
+        if finished_at is not None:
+            fmmss = f"{int(finished_at) // 60}:{int(finished_at) % 60:02d}"
+            top_line = big.render(
+                f"DONE in {fmmss}  ({finished_at:.1f}s)", True, (120, 240, 150)
+            )
+        else:
+            top_line = big.render(f"t = {mmss}   ({secs:5.1f}s)", True, (230, 230, 230))
+        screen.blit(top_line, (pad, hud_y))
         screen.blit(
             font.render(
                 f"pellets: {sim.alive_count:4d} left / {eaten:4d} eaten / {total} total",
@@ -640,13 +647,10 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
             )
 
         if finished_at is not None:
-            done_txt = big.render(
-                f"DONE in {int(finished_at) // 60}:{int(finished_at) % 60:02d}  "
-                f"({finished_at:.1f}s)   [R = new run]",
-                True,
-                (120, 240, 150),
+            screen.blit(
+                font.render("[ R = new run ]", True, (120, 240, 150)),
+                (win_w - 210, hud_y + 32),
             )
-            screen.blit(done_txt, (pad, hud_y - 2))
         if paused:
             screen.blit(
                 font.render("PAUSED  [space]", True, (250, 220, 120)),

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Fish Food - https://github.com/silversummitco/fishfood
-# Copyright (c) 2026 Silver Summit Co.  Licensed under the Fish Food Community
+# Copyright (c) 2026 SilverSummitCo LLC.  Licensed under the Fish Food Community
 # License (FFCL) v1.0 - see the LICENSE file.
 """Render a Fish Food run to an animated GIF (headless, no display needed).
 
@@ -93,20 +93,20 @@ def render(
             pts = sim.p_pos[present]
             stuck = sim.p_stuck[present]
             for (x, y), st in zip(pts, stuck):
-                X, Y = px(x, y)
+                sx, sy = px(x, y)
                 col = (150, 130, 80) if st else (224, 200, 130)
-                d.ellipse([X - 1.6, Y - 1.6, X + 1.6, Y + 1.6], fill=col)
+                d.ellipse([sx - 1.6, sy - 1.6, sx + 1.6, sy + 1.6], fill=col)
         for i in range(sim.f_pos.shape[0]):
             x, y = sim.f_pos[i]
-            X, Y = px(x, y)
+            sx, sy = px(x, y)
             col = tuple(int(c) for c in sim.f_color[i])
             r = max(2.0, sim.f_drawsize[i] * scale)
             vx, vy = sim.f_vel[i]
             n = (vx * vx + vy * vy) ** 0.5
             if n > 1e-6 and r >= 3:
-                tx, ty = X - vx / n * r * 1.7, Y - vy / n * r * 1.7
-                d.line([(X, Y), (tx, ty)], fill=col, width=max(1, int(r / 2)))
-            d.ellipse([X - r, Y - r, X + r, Y + r], fill=col)
+                tx, ty = sx - vx / n * r * 1.7, sy - vy / n * r * 1.7
+                d.line([(sx, sy), (tx, ty)], fill=col, width=max(1, int(r / 2)))
+            d.ellipse([sx - r, sy - r, sx + r, sy + r], fill=col)
         secs = sim.t
         mmss = f"{int(secs) // 60}:{int(secs) % 60:02d}"
         eaten = total - sim.alive_count
