@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=fishfood
+Comment=Watch the Fish Food pond simulation
+Exec=/home/arrive/Projects/fishfood/deploy/run_fishfood.sh
+Icon=/home/arrive/Projects/fishfood/deploy/icons/fishfood.svg
+Terminal=false
+Categories=Education;Science;Simulation;

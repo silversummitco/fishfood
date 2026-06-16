@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="pond" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#2a6f9e"/>
+      <stop offset="100%" stop-color="#123a54"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9a3c"/>
+      <stop offset="100%" stop-color="#e8631e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- pond -->
+  <circle cx="128" cy="128" r="120" fill="url(#pond)"/>
+  <circle cx="128" cy="128" r="120" fill="none" stroke="#5fb4dc" stroke-width="5" opacity="0.7"/>
+
+  <!-- lily pad -->
+  <ellipse cx="196" cy="70" rx="30" ry="18" fill="#2f8b50" opacity="0.85"/>
+  <path d="M196 70 L214 60" stroke="#1c5a33" stroke-width="3"/>
+
+  <!-- fish -->
+  <g transform="translate(96 140) rotate(-12)">
+    <!-- tail -->
+    <path d="M-58 0 L-92 -34 Q-72 0 -92 34 Z" fill="url(#body)"/>
+    <!-- body -->
+    <ellipse cx="0" cy="0" rx="64" ry="40" fill="url(#body)"/>
+    <!-- top fin -->
+    <path d="M-6 -38 Q14 -72 40 -34 Z" fill="#f4842c"/>
+    <!-- bottom fin -->
+    <path d="M-2 38 Q12 64 34 36 Z" fill="#f4842c"/>
+    <!-- koi patch -->
+    <ellipse cx="10" cy="-8" rx="22" ry="15" fill="#fff3e0" opacity="0.85"/>
+    <!-- eye -->
+    <circle cx="44" cy="-8" r="8" fill="#fdf6ec"/>
+    <circle cx="46" cy="-8" r="4.5" fill="#1a1a1a"/>
+  </g>
+
+  <!-- food pellets -->
+  <circle cx="150" cy="96" r="6" fill="#e6c882"/>
+  <circle cx="168" cy="106" r="5" fill="#e6c882"/>
+  <circle cx="158" cy="118" r="4" fill="#e6c882"/>
+  <circle cx="176" cy="92" r="4" fill="#e6c882"/>
+</svg>

@@ -68,19 +68,25 @@ class Config:
     pond_h: float = 4.0
 
     # Pellets (the batch / data)
-    n_pellets: int = 400
-    clump_radius: float = 0.11  # initial "basketball" clump radius (m)
+    n_pellets: int = 3000
+    clump_radius: float = 0.20  # initial "basketball" clump radius (m)
 
     # Pump: a fixed point pushing water (and pellets) gently outward
     pump_pos: tuple[float, float] = (3.0, 2.0)  # defaults to center
-    pump_radius: float = 0.8
-    pump_push: float = 0.12
+    pump_radius: float = 0.6
+    pump_push: float = 0.05
 
     # Water / surface dynamics
     drag: float = 2.2  # velocity damping per second
     turbulence: float = 0.015  # random jitter added to pellet velocity
     wall_margin: float = 0.06  # pellet within this of a wall "sticks"
     stick_damp: float = 0.06  # velocity multiplier for stuck pellets
+
+    # Startup choreography (matches the real pond: food drops in, fish doze)
+    settle_seconds: float = 3.0  # fish doze while the handful is dropped
+    drop_window: float = 2.5  # pellets appear over this long, filling the clump
+    wake_spread: float = 4.0  # fish wake staggered across this window
+    alert_radius: float = 0.9  # a fish also wakes if food drifts this near
 
     # Lily pads: discs that trap/damp pellets (x, y, radius)
     lily_pads: tuple[tuple[float, float, float], ...] = (
@@ -99,7 +105,7 @@ class Config:
             FishType(
                 "Adult Koi",
                 2,
-                0.95,
+                0.55,
                 0.14,
                 2.2,
                 0.40,
@@ -112,7 +118,7 @@ class Config:
             FishType(
                 "Juvenile Koi",
                 4,
-                0.80,
+                0.45,
                 0.09,
                 1.6,
                 0.28,
@@ -125,7 +131,7 @@ class Config:
             FishType(
                 "Goldfish",
                 3,
-                0.60,
+                0.34,
                 0.06,
                 1.2,
                 0.18,
@@ -137,14 +143,14 @@ class Config:
             ),
             FishType(
                 "Minnow",
-                200,
-                0.45,
+                400,
+                0.25,
                 0.03,
                 0.6,
                 0.07,
                 0.05,
                 2.50,
-                2.0,
+                6.0,
                 0.03,
                 (180, 200, 220),
             ),
@@ -175,13 +181,17 @@ class Simulation:
         n = cfg.n_pellets
         cx, cy = cfg.pond_w / 2.0, cfg.pond_h / 2.0
 
-        # Tight clump near the center (uniform over a small disc).
+        # Tight clump near the center (uniform over a small disc) - the food
+        # fills the whole basketball-sized circle, not just its rim.
         r = cfg.clump_radius * np.sqrt(self.rng.random(n))
         a = self.rng.random(n) * 2.0 * np.pi
         self.p_pos = np.stack([cx + r * np.cos(a), cy + r * np.sin(a)], axis=1)
         self.p_vel = np.zeros((n, 2))
         self.p_alive = np.ones(n, dtype=bool)
         self.p_stuck = np.zeros(n, dtype=bool)
+        # Pellets appear progressively, so the clump visibly fills up over the
+        # first couple of seconds rather than popping in all at once.
+        self.p_drop_t = self.rng.random(n) * cfg.drop_window
 
     def _init_fish(self) -> None:
         cfg = self.cfg
@@ -214,13 +224,16 @@ class Simulation:
             axis=1,
         )
         ang = self.rng.random(m) * 2.0 * np.pi
-        self.f_vel = (
-            np.stack([np.cos(ang), np.sin(ang)], axis=1) * self.f_speed[:, None] * 0.5
-        )
+        # Fish start nearly motionless - dozing until the food wakes them.
+        self.f_vel = self.rng.normal(0.0, 0.01, (m, 2))
 
         self.f_cool_timer = np.zeros(m)  # time until this fish may bite
         self.f_eaten = np.zeros(m, dtype=int)  # lifetime pellets eaten
         self.f_wander = ang.copy()  # current wander heading
+        # Each fish wakes after its own staggered delay (or sooner if food
+        # drifts within alert_radius - see step()).
+        self.f_wake_t = cfg.settle_seconds + self.rng.random(m) * cfg.wake_spread
+        self.f_awake = np.zeros(m, dtype=bool)
 
     # -- per-step physics -------------------------------------------------
     @property
@@ -231,37 +244,55 @@ class Simulation:
     def done(self) -> bool:
         return self.alive_count == 0
 
+    @property
+    def present_mask(self) -> np.ndarray:
+        """Pellets that have dropped in and are not yet eaten."""
+        return self.p_alive & (self.t >= self.p_drop_t)
+
     def step(self) -> None:
         cfg = self.cfg
         dt = cfg.dt
-        alive = self.p_alive
+        present = self.present_mask
 
-        if not alive.any():
-            self.t += dt
-            self.steps += 1
-            return
+        if present.any():
+            ai = np.where(present)[0]  # indices of dropped, uneaten pellets
+            P = self.p_pos[ai]  # (Na, 2)
+            F = self.f_pos  # (M, 2)
 
-        ai = np.where(alive)[0]  # indices of alive pellets
-        P = self.p_pos[ai]  # (Na, 2)
-        F = self.f_pos  # (M, 2)
+            # Pairwise fish->pellet offsets/distances. M is a few hundred, Na
+            # up to a couple thousand, so the dense matrix stays manageable.
+            diff = P[None, :, :] - F[:, None, :]  # (M, Na, 2) pellet - fish
+            dist2 = np.einsum("mnk,mnk->mn", diff, diff)  # (M, Na)
+            dist = np.sqrt(dist2)
 
-        # Pairwise fish->pellet offsets/distances. M is a few hundred, Na up
-        # to a few hundred, so the dense matrix is small and fast.
-        diff = P[None, :, :] - F[:, None, :]  # (M, Na, 2) pellet - fish
-        dist2 = np.einsum("mnk,mnk->mn", diff, diff)  # (M, Na)
-        dist = np.sqrt(dist2)
+            # Wake fish: on their own timer, or the moment food drifts close.
+            nearest_d = dist.min(axis=1)
+            self.f_awake |= (self.t >= self.f_wake_t) | (nearest_d < cfg.alert_radius)
 
-        self._fish_behavior(diff, dist, ai, dt)
-        self._advect_pellets(diff, dist, ai, dt)
-        self._eat(dist, ai)
+            self._fish_behavior(diff, dist, ai, dt)
+            self._advect_pellets(diff, dist, ai, dt)
+            self._eat(dist, ai)
+        else:
+            self._idle(dt)
 
         self.t += dt
         self.steps += 1
+
+    def _idle(self, dt) -> None:
+        """No food in the water yet (or all eaten): fish just doze in place."""
+        cfg = self.cfg
+        self.f_vel *= 0.55
+        self.f_vel += self.rng.normal(0.0, 0.004, self.f_vel.shape)
+        self.f_pos += self.f_vel * dt
+        np.clip(self.f_pos[:, 0], 0.05, cfg.pond_w - 0.05, out=self.f_pos[:, 0])
+        np.clip(self.f_pos[:, 1], 0.05, cfg.pond_h - 0.05, out=self.f_pos[:, 1])
 
     def _fish_behavior(self, diff, dist, ai, dt) -> None:
         """Steer each fish toward its nearest sensed pellet, else wander."""
         cfg = self.cfg
         M = self.f_pos.shape[0]
+
+        awake = self.f_awake
 
         # nearest alive pellet within sense radius, per fish
         within = dist < self.f_sense[:, None]
@@ -275,15 +306,22 @@ class Simulation:
         tgt_dir = np.where(tgt_dist > 1e-9, tgt_off / np.maximum(tgt_dist, 1e-9), 0.0)
 
         # wander: heading does a small random walk
-        self.f_wander += self.rng.normal(0.0, 0.6, M) * dt / cfg.dt * 0.15
+        self.f_wander += self.rng.normal(0.0, 0.6, M) * 0.15
         wander_dir = np.stack([np.cos(self.f_wander), np.sin(self.f_wander)], axis=1)
 
         desired_dir = np.where(has_target[:, None], tgt_dir, wander_dir)
         desired_vel = desired_dir * self.f_speed[:, None]
+        desired_vel[~awake] = 0.0  # dozing fish don't try to swim anywhere
 
         # smooth steering toward desired velocity
         turn = 0.25
         self.f_vel += (desired_vel - self.f_vel) * turn
+
+        # dozing fish settle to near-rest with only a faint idle drift
+        asleep = ~awake
+        if asleep.any():
+            self.f_vel[asleep] *= 0.55
+            self.f_vel[asleep] += self.rng.normal(0.0, 0.004, (int(asleep.sum()), 2))
 
         # clamp to max speed
         sp = np.linalg.norm(self.f_vel, axis=1, keepdims=True)
@@ -310,9 +348,11 @@ class Simulation:
 
         # --- fish wakes: each fish shoves nearby pellets radially outward ---
         inwake = dist < self.f_pushR[:, None]  # (M, Na)
-        # falloff 1 at the fish, 0 at the wake edge
+        # falloff 1 at the fish, 0 at the wake edge. Only awake (thrashing)
+        # fish stir the water - dozing fish leave the clump undisturbed.
         falloff = np.clip(1.0 - dist / self.f_pushR[:, None], 0.0, 1.0)
-        scale = np.where(inwake, falloff * self.f_push[:, None], 0.0)  # (M, Na)
+        awake_f = self.f_awake[:, None].astype(float)
+        scale = np.where(inwake, falloff * self.f_push[:, None] * awake_f, 0.0)
         invd = 1.0 / np.maximum(dist, 1e-6)
         # diff is (pellet - fish): pointing away from fish == outward push
         push_vec = diff * (scale * invd)[:, :, None]  # (M, Na, 2)
@@ -361,7 +401,9 @@ class Simulation:
         dt = self.cfg.dt
         self.f_cool_timer = np.maximum(0.0, self.f_cool_timer - dt)
 
-        ready = (self.f_cool_timer <= 0.0) & (self.f_eaten < self.f_maxeat)
+        ready = (
+            (self.f_cool_timer <= 0.0) & (self.f_eaten < self.f_maxeat) & self.f_awake
+        )
         if not ready.any():
             return
 
@@ -536,11 +578,11 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
         pygame.draw.circle(screen, (60, 130, 160), pc, int(cfg.pump_radius * scale), 1)
         pygame.draw.circle(screen, (90, 180, 210), pc, 4)
 
-        # pellets
-        alive = sim.p_alive
-        if alive.any():
-            pts = sim.p_pos[alive]
-            stuck = sim.p_stuck[alive]
+        # pellets (only those that have dropped into the water)
+        present = sim.present_mask
+        if present.any():
+            pts = sim.p_pos[present]
+            stuck = sim.p_stuck[present]
             for (x, y), st in zip(pts, stuck):
                 col = STUCK if st else PELLET
                 pygame.draw.circle(screen, col, to_px(x, y), 2)
