@@ -138,11 +138,12 @@ variance* (constant time), not a specific mean.
 
 ## License
 
-Source-available under the **Fish Food Community License (FFCL) v1.0** — see
-[`LICENSE`](LICENSE). In short: the algorithm is the author's intellectual
-property; it is **free to use for non-commercial purposes with attribution**;
-any **commercial or profit-making use requires prior written permission,
-credit, and a profit-share** agreement with the author. This is not an
-OSI-approved open-source license, and the license text is not legal advice.
+Source-available under the **PolyForm Noncommercial License 1.0.0** — see
+[`LICENSE`](LICENSE). In short: the Fish Food algorithm is the intellectual
+property of SilverSummitCo LLC; it is **free to use, modify, and share for any
+non-commercial purpose** (keep the `Required Notice` with copies). Any
+**commercial or profit-making use requires a separate commercial license** —
+which includes prior permission, attribution, and a profit-share. See
+[`COMMERCIAL.md`](COMMERCIAL.md). The license text is not legal advice.
 
 © 2026 SilverSummitCo LLC

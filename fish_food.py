@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # Fish Food - https://github.com/silversummitco/fishfood
-# Copyright (c) 2026 SilverSummitCo LLC.  Licensed under the Fish Food Community
-# License (FFCL) v1.0 - see the LICENSE file. Free for non-commercial use with
-# attribution; commercial/profit use requires permission and a profit-share.
+# Copyright (c) 2026 SilverSummitCo LLC.  Licensed under the PolyForm
+# Noncommercial License 1.0.0 - see the LICENSE file. Free for non-commercial
+# use; commercial/profit use requires a commercial license - see COMMERCIAL.md.
+# Required Notice: Copyright (c) 2026 SilverSummitCo LLC
+# (https://github.com/silversummitco/fishfood)
 """Fish Food - an agent-based pond-feeding simulator.
 
 The idea: a fixed handful of fish-food

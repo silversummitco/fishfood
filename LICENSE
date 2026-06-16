@@ -1,102 +1,150 @@
-Fish Food Community License (FFCL) v1.0
-Copyright (c) 2026 SilverSummitCo LLC ( https://github.com/silversummitco )
-All rights reserved.
+Fish Food
+Copyright (c) 2026 SilverSummitCo LLC
 
-The "Software" is the Fish Food algorithm and all source code, documentation,
-assets, and other materials in this repository, together with any derivative
-works of them.
+Required Notice: Copyright (c) 2026 SilverSummitCo LLC
+(https://github.com/silversummitco/fishfood)
 
-The "Author" is the copyright holder named above. The Author retains all
-intellectual property rights in the Software at all times. This license grants
-permission to use the Software under the conditions below; it does NOT transfer,
-assign, or sell ownership of the Software or of any idea, method, or algorithm
-embodied in it.
+This software is licensed under the PolyForm Noncommercial License 1.0.0 (the
+full, unmodified text of which appears below). In short: you may use, copy,
+modify, and share it freely for any NONCOMMERCIAL purpose, as long as you keep
+the "Required Notice" above with any copy you distribute.
 
---------------------------------------------------------------------------------
-1. GRANT FOR NON-COMMERCIAL USE
---------------------------------------------------------------------------------
-Subject to the conditions in this license, the Author grants you a worldwide,
-royalty-free, non-exclusive license to use, run, study, copy, modify, and
-distribute the Software and derivative works of it FOR NON-COMMERCIAL PURPOSES,
-free of charge.
+SilverSummitCo LLC retains all intellectual property rights in this software.
+COMMERCIAL or PROFIT-MAKING use is NOT granted by this license and requires a
+separate written agreement with SilverSummitCo LLC, including attribution and a
+profit-share. See COMMERCIAL.md and contact the author to obtain a commercial
+license.
 
-"Non-Commercial Purposes" means any use that is not primarily intended for or
-directed toward commercial advantage or monetary compensation. Personal
-projects, research, education, evaluation, and hobby use are Non-Commercial.
+================================================================================
 
---------------------------------------------------------------------------------
-2. ATTRIBUTION (REQUIRED FOR ALL USE)
---------------------------------------------------------------------------------
-Any use, copy, distribution, or derivative work of the Software must:
-  (a) retain this license file and all copyright and authorship notices; and
-  (b) give clear, visible credit to the Author as the originator of the Fish
-      Food algorithm, including a link to the original repository
-      ( https://github.com/silversummitco/fishfood ) in any documentation,
-      "about" screen, credits, README, or comparable place reasonably visible
-      to end users.
+# PolyForm Noncommercial License 1.0.0
 
---------------------------------------------------------------------------------
-3. COMMERCIAL OR PROFIT-MAKING USE (PERMISSION REQUIRED)
---------------------------------------------------------------------------------
-If you wish to use the Software, or any derivative work, idea, method, or
-algorithm embodied in it, in any way that is intended for or results in
-commercial advantage, revenue, or profit -- including but not limited to
-selling, licensing, hosting as a paid or ad-supported service, bundling into a
-commercial product, or use within a for-profit organization's revenue-
-generating operations -- then BEFORE such use you must:
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-  (a) ASK PERMISSION: obtain the Author's prior written permission;
-  (b) CREDIT: give attribution to the Author as described in Section 2; and
-  (c) SHARE PROFIT: agree with the Author, in writing, on a fair share of the
-      profit or revenue derived from that use, to be paid to the Author.
+## Acceptance
 
-Commercial or profit-making use without a written agreement satisfying (a),
-(b), and (c) is not licensed and is prohibited.
+In order to get any license under these terms, you must agree
+to them as both strict obligations and conditions to all
+your licenses.
 
-To request permission, open an issue at the repository above or contact the
-Author through the SilverSummitCo LLC account.
+## Copyright License
 
---------------------------------------------------------------------------------
-4. NOTICES AND MARKINGS
---------------------------------------------------------------------------------
-You may not remove, alter, or obscure any authorship, copyright, trademark, or
-attribution notices in the Software. Modified files should carry a prominent
-notice stating that you changed them and the date of change.
+The licensor grants you a copyright license for the
+software to do everything you might do with the software
+that would otherwise infringe the licensor's copyright
+in it for any permitted purpose.  However, you may
+only distribute the software according to [Distribution
+License](#distribution-license) and make changes or new works
+based on the software according to [Changes and New Works
+License](#changes-and-new-works-license).
 
---------------------------------------------------------------------------------
-5. RESERVATION OF RIGHTS
---------------------------------------------------------------------------------
-All rights not expressly granted are reserved by the Author. The Author may
-offer the Software under separate commercial terms to any party. Nothing in this
-license limits the Author's own rights to use, license, or commercialize the
-Software in any way.
+## Distribution License
 
---------------------------------------------------------------------------------
-6. TERMINATION
---------------------------------------------------------------------------------
-Any breach of this license automatically terminates the rights granted to you
-under it. Upon termination you must stop using and distributing the Software.
-Sections 2, 3 (as to past use), 5, 7, and 8 survive termination.
+The licensor grants you an additional copyright license
+to distribute copies of the software.  Your license
+to distribute covers distributing the software with
+changes and new works permitted by [Changes and New Works
+License](#changes-and-new-works-license).
 
---------------------------------------------------------------------------------
-7. DISCLAIMER OF WARRANTY
---------------------------------------------------------------------------------
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+## Notices
 
---------------------------------------------------------------------------------
-8. LIMITATION OF LIABILITY
---------------------------------------------------------------------------------
-IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
-OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+You must ensure that anyone who gets a copy of any part of
+the software from you also gets a copy of these terms or the
+URL for them above, as well as copies of any plain-text lines
+beginning with `Required Notice:` that the licensor provided
+with the software.  For example:
 
---------------------------------------------------------------------------------
-END OF TERMS
---------------------------------------------------------------------------------
-NOTE: This is a custom, source-available license, not an OSI-approved open
-source license (it restricts commercial use). It was drafted as a starting
-point and is not legal advice. For anything you intend to rely on or enforce,
-have a lawyer review it and insert your full legal name/entity where indicated.
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+## Changes and New Works License
+
+The licensor grants you an additional copyright license to
+make changes and new works based on the software for any
+permitted purpose.
+
+## Patent License
+
+The licensor grants you a patent license for the software that
+covers patent claims the licensor can license, or becomes able
+to license, that you would infringe by using the software.
+
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for
+the benefit of public knowledge, personal study, private
+entertainment, hobby projects, amateur pursuits, or religious
+observance, without any anticipated commercial application,
+is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution,
+public research organization, public safety or health
+organization, environmental protection organization,
+or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting
+from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the
+law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of
+your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else.  These terms do not imply
+any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or
+contributes to infringement of any patent, your patent license
+for the software granted under these terms ends immediately. If
+your company makes such a claim, your patent license ends
+immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have
+violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless
+continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within
+32 days of receiving notice.  Otherwise, all your licenses
+end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without
+any warranty or condition, and the licensor will not be liable
+to you for any damages arising out of these terms or the use
+or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these
+terms, and the **software** is the software the licensor makes
+available under these terms.
+
+**You** refers to the individual or entity agreeing to these
+terms.
+
+**Your company** is any legal entity, sole proprietorship,
+or other kind of organization that you work for, plus all
+organizations that have control over, are under the control of,
+or are under common control with that organization.  **Control**
+means ownership of substantially all the assets of an entity,
+or the power to direct its management and policies by vote,
+contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the
+software under these terms.
+
+**Use** means anything you do with the software requiring one
+of your licenses.
