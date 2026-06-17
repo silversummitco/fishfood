@@ -87,6 +87,15 @@ class Config:
     hard_bites: int = 4  # bites to finish a hard unit (easy = 1 bite)
     hard_min_mouth: float = 0.08  # min consumer mouth size to work a hard unit
 
+    # Scheduling / routing policy - who works what.
+    #   "greedy"     : every consumer chases the nearest unit it can work.
+    #   "specialist" : big consumers (those able to work hard units) prefer
+    #                  hard units, reserving the scarce heavyweight workers for
+    #                  the bottleneck work instead of grabbing easy units the
+    #                  swarm could handle.
+    policy: str = "greedy"
+    specialist_bias: float = 5.0  # how strongly big consumers avoid easy units (m)
+
     # Pump: a fixed point pushing water (and pellets) gently outward
     pump_pos: tuple[float, float] = (3.0, 2.0)  # defaults to center
     pump_radius: float = 0.6
@@ -245,6 +254,8 @@ class Simulation:
         self.f_maxeat = np.array([f.max_eat for f in rows])
         self.f_drawsize = np.array([f.draw_size for f in rows])
         self.f_color = np.array([f.color for f in rows], dtype=np.uint8)
+        # "big" = able to work hard units; used by the specialist policy.
+        self.f_big = self.f_mouth >= cfg.hard_min_mouth
         # index of the FishType each fish belongs to (for HUD / coloring)
         self.f_type = np.concatenate(
             [np.full(ft.count, i) for i, ft in enumerate(cfg.fish_types)]
@@ -335,6 +346,12 @@ class Simulation:
         can_work = self.f_mouth[:, None] >= self.p_minmouth[None, ai]  # (M, Na)
         within = (dist < self.f_sense[:, None]) & can_work
         masked = np.where(within, dist, np.inf)  # (M, Na)
+        # Specialist policy: big consumers add a distance penalty to easy units
+        # so they prefer (travel toward) hard units when any are in range.
+        if cfg.policy == "specialist":
+            easy_unit = (self.p_minmouth[ai] == 0.0)[None, :]  # (1, Na)
+            penalize = self.f_big[:, None] & easy_unit & within
+            masked = np.where(penalize, masked + cfg.specialist_bias, masked)
         nearest = np.argmin(masked, axis=1)  # (M,)
         has_target = np.isfinite(masked[np.arange(M), nearest])
 
@@ -457,8 +474,13 @@ class Simulation:
             return
 
         # Resolve greedily over the (few) ready+eligible fish. Closest first
-        # so a unit goes to the nearest qualified mouth.
+        # so a unit goes to the nearest qualified mouth. Under the specialist
+        # policy, big consumers prefer hard units over easy ones in reach.
         masked = np.where(eligible, dist, np.inf)
+        if self.cfg.policy == "specialist":
+            easy_unit = (self.p_minmouth[ai] == 0.0)[None, :]
+            penalize = self.f_big[:, None] & easy_unit & eligible
+            masked = np.where(penalize, masked + self.cfg.specialist_bias, masked)
         cand_j = np.argmin(masked, axis=1)  # nearest workable unit per fish
         cand_d = masked[np.arange(masked.shape[0]), cand_j]
         biters = np.where(np.isfinite(cand_d))[0]
@@ -614,6 +636,66 @@ def benchmark(
 
     if plot_path:
         _save_histogram_png(times, plot_path)
+
+
+def theory_report(cfg: Config, observed: float | None = None) -> None:
+    """Print a capacity / queueing estimate WITHOUT running a simulation.
+
+    This computes an *optimistic floor* on completion time assuming perfect
+    utilization and zero travel/search, plus the hard-work bottleneck. Real
+    runs sit well above this floor; the ratio is the travel/search overhead
+    that better routing policies aim to shrink.
+    """
+    n = cfg.n_pellets
+    hard = int(round(n * cfg.hard_fraction))
+    easy = n - hard
+    easy_bites = easy * 1
+    hard_bites = hard * cfg.hard_bites
+    total_bites = easy_bites + hard_bites
+
+    print("Fish Food - capacity / queueing estimate (no simulation)\n")
+    print(f"  units: {n}  (easy {easy}, hard {hard} x {cfg.hard_bites} bites each)")
+    print(f"  work : {total_bites} bites  (easy {easy_bites} + hard {hard_bites})\n")
+    print(f"  {'pool':<14}{'count':>6}{'rate/s':>9}{'cap':>9}{'hard?':>7}")
+    print("  " + "-" * 45)
+    r_total = 0.0
+    r_hard = 0.0
+    for ft in cfg.fish_types:
+        rate = ft.count / ft.cooldown
+        r_total += rate
+        can_hard = ft.mouth >= cfg.hard_min_mouth
+        if can_hard:
+            r_hard += rate
+        cap = "inf" if ft.max_eat == math.inf else f"{ft.max_eat:g}"
+        print(
+            f"  {ft.name:<14}{ft.count:>6}{rate:>9.1f}{cap:>9}"
+            f"{('yes' if can_hard else 'no'):>7}"
+        )
+    print("  " + "-" * 45)
+    print(f"  total bite-rate (all consumers)   = {r_total:7.1f} bites/s")
+    print(f"  hard-capable bite-rate            = {r_hard:7.1f} bites/s\n")
+
+    t_all = total_bites / r_total if r_total else math.inf
+    t_hard = (hard_bites / r_hard) if (r_hard and hard_bites) else 0.0
+    floor = max(t_all, t_hard)
+    print(f"  floor: all work / total rate      = {t_all:7.1f} s")
+    if hard_bites > 0:
+        tag = "  <-- bottleneck" if t_hard >= t_all else ""
+        print(f"  floor: hard work / hard rate      = {t_hard:7.1f} s{tag}")
+    print(f"  => optimistic floor               = {floor:7.1f} s")
+    print("     (perfect utilization, zero travel/search)")
+
+    if observed:
+        util = floor / observed * 100.0 if observed else 0.0
+        print(f"\n  observed mean                     = {observed:7.1f} s")
+        print(f"  utilization (floor / observed)    = {util:7.1f} %")
+        print(f"  travel/search overhead            = {observed / floor:7.1f} x")
+
+    print(
+        "\n  Note: caps-over-time and all travel/search are ignored, so this is\n"
+        "  a lower bound. The gap between it and real runs is what scheduling\n"
+        "  policies (try --policy specialist) aim to close."
+    )
 
 
 # --------------------------------------------------------------------------
@@ -813,6 +895,8 @@ def build_config(args) -> Config:
         cfg.max_seconds = args.max_seconds
     if args.hard_fraction is not None:
         cfg.hard_fraction = args.hard_fraction
+    if args.policy is not None:
+        cfg.policy = args.policy
     return cfg
 
 
@@ -851,6 +935,24 @@ def main(argv: list[str] | None = None) -> int:
         help="benchmark: save a completion-time histogram PNG to this path",
     )
     p.add_argument(
+        "--policy",
+        choices=("greedy", "specialist"),
+        default=None,
+        help="scheduling policy: 'greedy' (default) or 'specialist' "
+        "(big consumers prefer hard units)",
+    )
+    p.add_argument(
+        "--theory",
+        action="store_true",
+        help="print a capacity/queueing estimate (no simulation) and exit",
+    )
+    p.add_argument(
+        "--observed",
+        type=float,
+        default=None,
+        help="with --theory: an observed mean (s) to compare against the floor",
+    )
+    p.add_argument(
         "--max-seconds",
         type=float,
         default=None,
@@ -867,6 +969,10 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     cfg = build_config(args)
+
+    if args.theory:
+        theory_report(cfg, observed=args.observed)
+        return 0
 
     if args.runs and args.runs > 0:
         benchmark(cfg, args.runs, args.seed, plot_path=args.plot)

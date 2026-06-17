@@ -107,6 +107,24 @@ The interesting question this lets you probe: does completion time stay
 bounded/predictable when a chunk of the work can only be done by the few big
 consumers? (Tune `hard_bites` and `hard_min_mouth` in `Config` to taste.)
 
+A **scheduling policy** controls who works what: `--policy greedy` (default,
+every consumer chases the nearest unit it can work) or `--policy specialist`
+(big consumers prefer hard units, reserving the scarce heavyweight workers for
+the bottleneck).
+
+### Capacity estimate (no simulation)
+
+For an instant, compute-free sanity check, print an analytic floor on the
+completion time and compare it to a measured mean:
+
+```bash
+.venv/bin/python fish_food.py --theory --hard-fraction 0.25 --observed 607
+```
+
+This reports per-pool bite-rates, the hard-work bottleneck, an **optimistic
+floor** (perfect utilization, zero travel), and the **travel/search overhead**
+factor between that floor and your observed runs.
+
 > `pygame` is imported lazily inside the visual code path, so the benchmark runs
 > fine on a machine with no display or without `pygame` installed.
 
@@ -122,6 +140,28 @@ Both, by design. Every run is seeded: the **same seed reproduces an identical
 run**, while **different seeds give different random ponds**. The benchmark uses
 consecutive seeds so each run is a different layout — and the completion times
 still cluster, which is the result the project exists to demonstrate.
+
+## Findings so far
+
+From 30-run benchmarks at 3000 units (your mileage will vary with parameters):
+
+- **Uniform batch (0% hard):** mean ~3:22, **CV ~17%**.
+- **Mixed batch (25% hard):** mean ~10:07, **CV ~17%**.
+- Difficulty-gating a quarter of the work to the 6 big consumers **tripled the
+  mean but left relative variability unchanged** — the process stays equally
+  predictable, just slower.
+- The capacity estimate shows real runs sit at only **~7–13% utilization**, i.e.
+  an **~8–14× travel/search overhead** over the theoretical floor. The system is
+  *search-limited*, not *capacity-limited*.
+- A naive **specialist** routing policy did **not** help (slightly worse in a
+  small test) — consistent with the above: prioritizing *which* unit to grab
+  doesn't reduce the time spent *finding* scattered units. The next lever is
+  reducing search overhead (e.g. recruitment/clustering, or larger sense range
+  for the heavyweight workers), not task selection.
+
+These are the kind of results that make the model useful for *planning*: it
+quantifies bottlenecks and the cost of search, and predicts how mixing worker
+sizes affects both speed and predictability.
 
 ## How it works (model)
 
