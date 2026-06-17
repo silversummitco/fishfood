@@ -95,10 +95,16 @@ def render(
         if present.any():
             pts = sim.p_pos[present]
             stuck = sim.p_stuck[present]
-            for (x, y), st in zip(pts, stuck):
+            hard = sim.p_minmouth[present] > 0
+            for (x, y), st, hd in zip(pts, stuck, hard):
                 sx, sy = px(x, y)
-                col = (150, 130, 80) if st else (224, 200, 130)
-                d.ellipse([sx - 1.6, sy - 1.6, sx + 1.6, sy + 1.6], fill=col)
+                if st:
+                    col, rad = (150, 130, 80), 1.6
+                elif hd:
+                    col, rad = (225, 95, 115), 2.4
+                else:
+                    col, rad = (224, 200, 130), 1.6
+                d.ellipse([sx - rad, sy - rad, sx + rad, sy + rad], fill=col)
         for i in range(sim.f_pos.shape[0]):
             x, y = sim.f_pos[i]
             sx, sy = px(x, y)
@@ -174,11 +180,19 @@ def main() -> int:
         default=None,
         help="override pellet count (e.g. a smaller value for a short demo clip)",
     )
+    p.add_argument(
+        "--hard-fraction",
+        type=float,
+        default=None,
+        help="fraction of 'hard' units (multi-bite, big-mouth-only)",
+    )
     args = p.parse_args()
 
     cfg = Config()
     if args.pellets is not None:
         cfg.n_pellets = args.pellets
+    if args.hard_fraction is not None:
+        cfg.hard_fraction = args.hard_fraction
     render(
         cfg,
         args.seed,

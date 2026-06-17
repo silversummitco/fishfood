@@ -78,6 +78,15 @@ class Config:
     n_pellets: int = 3000
     clump_radius: float = 0.20  # initial "basketball" clump radius (m)
 
+    # Workload heterogeneity. Default (0.0) is a uniform batch where every unit
+    # is one easy bite - the classic pond. Turn this up to model data of mixed
+    # difficulty (e.g. a simple deed vs. a tangled chain of title): a fraction
+    # of units become "hard", needing several bites AND a large enough mouth,
+    # so only the big consumers can finish them.
+    hard_fraction: float = 0.0  # fraction of units that are "hard"
+    hard_bites: int = 4  # bites to finish a hard unit (easy = 1 bite)
+    hard_min_mouth: float = 0.08  # min consumer mouth size to work a hard unit
+
     # Pump: a fixed point pushing water (and pellets) gently outward
     pump_pos: tuple[float, float] = (3.0, 2.0)  # defaults to center
     pump_radius: float = 0.6
@@ -201,6 +210,25 @@ class Simulation:
         # first couple of seconds rather than popping in all at once.
         self.p_drop_t = self.rng.random(n) * cfg.drop_window
 
+        # Work content: bites remaining to finish a unit, and the minimum
+        # consumer mouth size able to work it. Easy units = 1 bite, no minimum.
+        self.p_bites = np.ones(n)
+        self.p_minmouth = np.zeros(n)
+        if cfg.hard_fraction > 0.0:
+            n_hard = int(round(n * cfg.hard_fraction))
+            if n_hard > 0:
+                hard_idx = self.rng.choice(n, size=n_hard, replace=False)
+                self.p_bites[hard_idx] = float(cfg.hard_bites)
+                self.p_minmouth[hard_idx] = cfg.hard_min_mouth
+                # Feasibility guard: someone must be able to finish hard units,
+                # or the batch can never complete.
+                biggest_mouth = max(ft.mouth for ft in cfg.fish_types)
+                if biggest_mouth < cfg.hard_min_mouth:
+                    raise ValueError(
+                        f"No consumer can work hard units: largest mouth "
+                        f"{biggest_mouth} < hard_min_mouth {cfg.hard_min_mouth}."
+                    )
+
     def _init_fish(self) -> None:
         cfg = self.cfg
         rows: list[FishType] = []
@@ -302,8 +330,10 @@ class Simulation:
 
         awake = self.f_awake
 
-        # nearest alive pellet within sense radius, per fish
-        within = dist < self.f_sense[:, None]
+        # nearest sensed pellet this fish can actually work (within sense range
+        # AND big enough mouth for the unit's difficulty), per fish
+        can_work = self.f_mouth[:, None] >= self.p_minmouth[None, ai]  # (M, Na)
+        within = (dist < self.f_sense[:, None]) & can_work
         masked = np.where(within, dist, np.inf)  # (M, Na)
         nearest = np.argmin(masked, axis=1)  # (M,)
         has_target = np.isfinite(masked[np.arange(M), nearest])
@@ -415,30 +445,40 @@ class Simulation:
         if not ready.any():
             return
 
-        # eligible[m, j] : fish m may eat alive-pellet j (within its mouth)
-        eligible = (dist < self.f_mouth[:, None]) & ready[:, None]
+        # eligible[m, j] : fish m may bite present-pellet j -- within its mouth
+        # reach AND mouth large enough for that unit's difficulty.
+        pminmouth = self.p_minmouth[ai]  # (Na,)
+        eligible = (
+            (dist < self.f_mouth[:, None])
+            & ready[:, None]
+            & (self.f_mouth[:, None] >= pminmouth[None, :])
+        )
         if not eligible.any():
             return
 
         # Resolve greedily over the (few) ready+eligible fish. Closest first
-        # so a pellet goes to the hungriest/nearest mouth.
+        # so a unit goes to the nearest qualified mouth.
         masked = np.where(eligible, dist, np.inf)
-        cand_j = np.argmin(masked, axis=1)  # nearest pellet per fish
+        cand_j = np.argmin(masked, axis=1)  # nearest workable unit per fish
         cand_d = masked[np.arange(masked.shape[0]), cand_j]
         biters = np.where(np.isfinite(cand_d))[0]
-        # nearest mouths get first pick (avoids two fish "eating" one pellet)
+        # nearest mouths get first pick (one bite per unit per step)
         biters = biters[np.argsort(cand_d[biters])]
 
-        eaten_local = set()
+        bitten_local = set()
         for m in biters:
             j = int(cand_j[m])
-            if j in eaten_local:
+            if j in bitten_local:
                 continue
-            eaten_local.add(j)
+            bitten_local.add(j)
             pellet = int(ai[j])
-            self.p_alive[pellet] = False
-            self.f_eaten[m] += 1
+            # Take one bite. Hard units need several bites (possibly from
+            # several fish over several cooldowns) before they're finished.
+            self.p_bites[pellet] -= 1.0
+            self.f_eaten[m] += 1  # counts work done (bites), feeds the eat cap
             self.f_cool_timer[m] = self.f_cooldown[m]
+            if self.p_bites[pellet] <= 0.0:
+                self.p_alive[pellet] = False
 
 
 # --------------------------------------------------------------------------
@@ -461,9 +501,60 @@ def run_headless(cfg: Config, seed: int | None) -> dict:
     }
 
 
-def benchmark(cfg: Config, runs: int, base_seed: int) -> None:
+def _ascii_histogram(values: list[float], bins: int = 12, width: int = 40) -> list[str]:
+    """A tiny text histogram so the distribution is visible without a GUI."""
+    lo, hi = min(values), max(values)
+    if hi - lo < 1e-9:
+        return [f"    all {len(values)} run(s) finished at ~{lo:.1f}s"]
+    counts = [0] * bins
+    for v in values:
+        idx = min(bins - 1, int((v - lo) / (hi - lo) * bins))
+        counts[idx] += 1
+    cmax = max(counts) or 1
+    lines = []
+    for k in range(bins):
+        e0 = lo + (hi - lo) * k / bins
+        e1 = lo + (hi - lo) * (k + 1) / bins
+        bar = "#" * int(round(counts[k] / cmax * width))
+        lines.append(f"  {e0:6.1f}-{e1:6.1f}s | {bar:<{width}} {counts[k]}")
+    return lines
+
+
+def _save_histogram_png(values: list[float], path: str, bins: int = 12) -> None:
+    """Save a simple completion-time histogram PNG (uses Pillow if available)."""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:
+        print(f"  (Pillow not installed; skipped writing {path})")
+        return
+    W, H, m = 720, 360, 50
+    lo, hi = min(values), max(values)
+    span = max(hi - lo, 1e-9)
+    counts = [0] * bins
+    for v in values:
+        counts[min(bins - 1, int((v - lo) / span * bins))] += 1
+    cmax = max(counts) or 1
+    img = Image.new("RGB", (W, H), (18, 26, 34))
+    d = ImageDraw.Draw(img)
+    d.rectangle([m, 20, W - 20, H - m], outline=(70, 90, 110))
+    bw = (W - 20 - m) / bins
+    for k in range(bins):
+        bh = (H - m - 20) * counts[k] / cmax
+        x0 = m + k * bw + 2
+        d.rectangle([x0, H - m - bh, x0 + bw - 4, H - m], fill=(120, 200, 240))
+    d.text((m, 4), "Fish Food completion-time distribution", fill=(220, 230, 240))
+    d.text((m, H - m + 8), f"{lo:.0f}s", fill=(180, 195, 210))
+    d.text((W - 70, H - m + 8), f"{hi:.0f}s", fill=(180, 195, 210))
+    img.save(path)
+    print(f"  histogram written to {path}")
+
+
+def benchmark(
+    cfg: Config, runs: int, base_seed: int, plot_path: str | None = None
+) -> None:
+    hard_note = f", {cfg.hard_fraction:.0%} hard units" if cfg.hard_fraction > 0 else ""
     print(
-        f"Fish Food benchmark: {runs} run(s), {cfg.n_pellets} pellets, "
+        f"Fish Food benchmark: {runs} run(s), {cfg.n_pellets} pellets{hard_note}, "
         f"dt={cfg.dt}s, cap={cfg.max_seconds}s\n"
     )
     print(f"  {'run':>3}  {'seed':>6}  {'time (s)':>9}  {'mm:ss':>6}  status")
@@ -494,15 +585,35 @@ def benchmark(cfg: Config, runs: int, base_seed: int) -> None:
         return
 
     mean = statistics.mean(times)
+    median = statistics.median(times)
     stdev = statistics.stdev(times) if len(times) > 1 else 0.0
     cv = (stdev / mean * 100.0) if mean else 0.0
     print(f"\nCompletion time over {len(times)} completed run(s):")
     print(f"  mean   = {mean:8.2f} s   ({int(mean) // 60}:{int(mean) % 60:02d})")
+    print(f"  median = {median:8.2f} s")
     print(f"  stdev  = {stdev:8.2f} s")
     print(f"  min    = {min(times):8.2f} s")
     print(f"  max    = {max(times):8.2f} s")
     print(f"  spread = {max(times) - min(times):8.2f} s")
     print(f"  CV     = {cv:8.1f} %   (lower = more constant-time)")
+
+    # Verdict: the whole claim is about LOW variance across random layouts.
+    if cv < 8:
+        verdict = "VERY constant-time (tight clustering)"
+    elif cv < 15:
+        verdict = "fairly constant-time"
+    elif cv < 30:
+        verdict = "moderately variable"
+    else:
+        verdict = "highly variable (not yet constant-time)"
+    print(f"  verdict: {verdict}")
+
+    print("\nDistribution:")
+    for line in _ascii_histogram(times):
+        print(line)
+
+    if plot_path:
+        _save_histogram_png(times, plot_path)
 
 
 # --------------------------------------------------------------------------
@@ -537,6 +648,7 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
     WATER_EDGE = (40, 90, 120)
     PELLET = (210, 190, 120)
     STUCK = (150, 130, 80)
+    HARD = (225, 95, 115)  # "hard" work units (only big consumers can finish)
 
     sim = Simulation(cfg, seed=seed)
     history: list[int] = [sim.alive_count]
@@ -591,9 +703,10 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
         if present.any():
             pts = sim.p_pos[present]
             stuck = sim.p_stuck[present]
-            for (x, y), st in zip(pts, stuck):
-                col = STUCK if st else PELLET
-                pygame.draw.circle(screen, col, to_px(x, y), 2)
+            hard = sim.p_minmouth[present] > 0
+            for (x, y), st, hd in zip(pts, stuck, hard):
+                col = STUCK if st else (HARD if hd else PELLET)
+                pygame.draw.circle(screen, col, to_px(x, y), 3 if hd else 2)
 
         # fish
         for i in range(sim.f_pos.shape[0]):
@@ -698,6 +811,8 @@ def build_config(args) -> Config:
         cfg.n_pellets = args.pellets
     if args.max_seconds is not None:
         cfg.max_seconds = args.max_seconds
+    if args.hard_fraction is not None:
+        cfg.hard_fraction = args.hard_fraction
     return cfg
 
 
@@ -723,6 +838,19 @@ def main(argv: list[str] | None = None) -> int:
         "--pellets", type=int, default=None, help="override the number of pellets"
     )
     p.add_argument(
+        "--hard-fraction",
+        type=float,
+        default=None,
+        help="fraction of units that are 'hard' (multi-bite, big-mouth-only); "
+        "models a workload of mixed difficulty",
+    )
+    p.add_argument(
+        "--plot",
+        type=str,
+        default=None,
+        help="benchmark: save a completion-time histogram PNG to this path",
+    )
+    p.add_argument(
         "--max-seconds",
         type=float,
         default=None,
@@ -741,7 +869,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = build_config(args)
 
     if args.runs and args.runs > 0:
-        benchmark(cfg, args.runs, args.seed)
+        benchmark(cfg, args.runs, args.seed, plot_path=args.plot)
         return 0
 
     try:

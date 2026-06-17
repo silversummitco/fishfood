@@ -82,12 +82,30 @@ constant the completion time is:
 .venv/bin/python fish_food.py --runs 20
 ```
 
-Output includes mean / stdev / min / max and a **CV%** (coefficient of
-variation) — lower CV means more constant-time behavior, which is the whole
-claim being tested.
+Output includes mean / median / stdev / min / max, a **CV%** (coefficient of
+variation), a plain-English **verdict**, and a text **histogram** of completion
+times. Lower CV = more constant-time behavior, which is the whole claim being
+tested. Add `--plot out.png` to also save the histogram as an image.
 
-Useful flags: `--seed N`, `--pellets N`, `--max-seconds S`, `--fps N`,
-`--no-graph`.
+Useful flags: `--seed N`, `--pellets N`, `--hard-fraction F`, `--plot PATH`,
+`--max-seconds S`, `--fps N`, `--no-graph`.
+
+### Modeling a mixed-difficulty workload (e.g. title research)
+
+By default every unit is one easy bite. Set `--hard-fraction` (0–1) to make a
+slice of the batch **hard**: hard units take several bites *and* require a
+large-enough "mouth", so only the big consumers can finish them — the tiny ones
+can't touch them. This models data of mixed difficulty (a simple deed vs. a
+tangled chain of title), where routine items are cleared by a large cheap pool
+but the gnarly ones must wait for a scarce expert/heavyweight worker.
+
+```bash
+.venv/bin/python fish_food.py --runs 12 --hard-fraction 0.2
+```
+
+The interesting question this lets you probe: does completion time stay
+bounded/predictable when a chunk of the work can only be done by the few big
+consumers? (Tune `hard_bites` and `hard_min_mouth` in `Config` to taste.)
 
 > `pygame` is imported lazily inside the visual code path, so the benchmark runs
 > fine on a machine with no display or without `pygame` installed.
