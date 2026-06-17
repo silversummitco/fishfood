@@ -51,8 +51,11 @@ Ask for (or infer, stating assumptions):
 - **Agent tiers**: for each tier, the count, the throughput (items or bites per
   second/minute/hour), and **whether that tier can handle hard items**.
 - **Deadline / SLA**, if any.
+- **Concurrent workloads**: is this one batch, or several projects sharing the
+  pool at once? (Maps to `--workloads K`; the benchmark then reports a fairness
+  gap between the first and last workload to finish.)
 - **Is discovery costly?** (decentralized assignment, agents exploring, humans
-  choosing what to pick up) — confirms the model applies.
+  choosing what to pick up) - confirms the model applies.
 
 ## Step 3 — Capacity estimate and bottleneck (fast, no simulation)
 
@@ -105,6 +108,12 @@ more reliable for an SLA. Rough reading: <8% very predictable, 8–15% fairly,
 Toggle behaviors to test levers:
 - `--policy specialist` — reserve capable agents for hard items.
 - `--legacy-search` — turn off recruitment + area-restricted search (baseline).
+- `--workloads K` — several projects sharing one pool; watch the **fairness
+  gap** (pooling keeps aggregate throughput but can starve individual
+  workloads). Pooling is free on throughput, not on per-project predictability.
+- `--recruit-radius / --recruit-recent / --ars-*` — search-tuning knobs to
+  sweep for lower CV (defaults are already near-optimal; expect a
+  speed-vs-predictability tradeoff).
 
 Note: large batches are compute-heavy. Use a smaller `--pellets` for quick
 iteration and tell the user the result is relative, then scale up once the
@@ -135,7 +144,8 @@ and **quality/correctness**.
 ## Caveats to repeat to the user
 - Outputs are **structural** unless calibrated with the user's measured rates and
   difficulty mix.
-- It models a **single batch in a single arena**. Modeling many concurrent
-  workloads sharing one agent pool requires extending the simulator.
+- It supports **multiple concurrent workloads** sharing one pool (`--workloads`),
+  but they all **arrive at once** - it does not yet model staggered arrivals or
+  per-workload priorities/SLAs.
 - It is **not** a model of set-level/dependency reasoning (e.g. tracing a chain
   of title across documents) and **not** a substitute for quality evaluation.

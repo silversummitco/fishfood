@@ -116,7 +116,23 @@ the bottleneck).
 *recruitment* (idle fish drift toward fish that are actively feeding) and
 *area-restricted search* (turn tightly right after a find, go ballistic when
 unfed). Use `--legacy-search` to turn both off and reproduce the old blind
-wandering for comparison. (Knobs: `recruit*`, `ars*` in `Config`.)
+wandering for comparison. The knobs are sweepable from the CLI for tuning:
+`--recruit-radius`, `--recruit-recent`, `--ars-full-turn`, `--ars-lost-turn`,
+`--ars-memory` (defaults are already near-optimal for low variance).
+
+### Concurrent workloads (shared agent pool)
+
+Use `--workloads K` to split the same total work into **K separate clumps**
+dropped at different spots, all served by the one shared pool - a fleet handling
+several projects at once:
+
+```bash
+.venv/bin/python fish_food.py --runs 10 --workloads 4
+```
+
+The benchmark then also reports a **fairness gap**: the per-run time between the
+first and last workload to finish. Small = the pool clears everything together;
+large = it swarms one workload while the others wait.
 
 ### Capacity estimate (no simulation)
 
@@ -179,6 +195,12 @@ From 30-run benchmarks at 3000 units (your mileage will vary with parameters):
   unlucky scattered-tail runs catch up to the typical ones — which is exactly
   the "gone in about the same time" property the project is named for. Reducing
   *search*, not changing *task selection*, is the lever.
+- **Concurrent workloads: pooling is free on throughput but not on fairness.**
+  Splitting the same total work into 4 clumps served by one shared pool left the
+  overall completion time unchanged, but a **fairness gap** appeared — the pool
+  clears clumps somewhat sequentially, so the first workload finishes ~20–25% of
+  the total time before the last. Pooling a fleet across projects costs you
+  per-project predictability even when aggregate throughput is identical.
 
 These are the kind of results that make the model useful for *planning*: it
 quantifies bottlenecks and the cost of search, and predicts how mixing worker

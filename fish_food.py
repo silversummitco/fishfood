@@ -78,6 +78,13 @@ class Config:
     n_pellets: int = 3000
     clump_radius: float = 0.20  # initial "basketball" clump radius (m)
 
+    # Concurrent workloads. 1 = the classic single pond. With >1, the SAME
+    # n_pellets of total work is split into this many separate clumps dropped at
+    # different spots, all served by the one shared agent pool - modeling a
+    # fleet handling several projects at once. Lets you study fairness (do all
+    # workloads finish together, or does the pool swarm one and starve others?).
+    n_workloads: int = 1
+
     # Workload heterogeneity. Default (0.0) is a uniform batch where every unit
     # is one easy bite - the classic pond. Turn this up to model data of mixed
     # difficulty (e.g. a simple deed vs. a tangled chain of title): a fraction
@@ -216,16 +223,38 @@ class Simulation:
         self._init_fish()
 
     # -- setup ------------------------------------------------------------
+    def _workload_centers(self) -> np.ndarray:
+        """Drop-in location for each workload's clump."""
+        cfg = self.cfg
+        cx, cy = cfg.pond_w / 2.0, cfg.pond_h / 2.0
+        k = max(1, cfg.n_workloads)
+        if k == 1:
+            return np.array([[cx, cy]])
+        # Spread the clumps evenly on a ring so the shared pool has to cover
+        # genuinely separate regions.
+        radius = 0.32 * min(cfg.pond_w, cfg.pond_h)
+        ang = np.linspace(0.0, 2.0 * np.pi, k, endpoint=False)
+        return np.stack([cx + radius * np.cos(ang), cy + radius * np.sin(ang)], axis=1)
+
     def _init_pellets(self) -> None:
         cfg = self.cfg
         n = cfg.n_pellets
-        cx, cy = cfg.pond_w / 2.0, cfg.pond_h / 2.0
+        k = max(1, cfg.n_workloads)
 
-        # Tight clump near the center (uniform over a small disc) - the food
-        # fills the whole basketball-sized circle, not just its rim.
+        # Split the total work across k workloads (as evenly as possible) and
+        # give each its own clump location. Each pellet remembers its workload.
+        self.n_wk = k
+        base, rem = divmod(n, k)
+        counts = np.full(k, base, dtype=int)
+        counts[:rem] += 1
+        self.p_workload = np.repeat(np.arange(k), counts)
+        centers = self._workload_centers()[self.p_workload]  # (n, 2)
+
+        # Tight clump per workload (uniform over a small disc) - each clump
+        # fills its whole basketball-sized circle, not just its rim.
         r = cfg.clump_radius * np.sqrt(self.rng.random(n))
         a = self.rng.random(n) * 2.0 * np.pi
-        self.p_pos = np.stack([cx + r * np.cos(a), cy + r * np.sin(a)], axis=1)
+        self.p_pos = centers + np.stack([r * np.cos(a), r * np.sin(a)], axis=1)
         self.p_vel = np.zeros((n, 2))
         self.p_alive = np.ones(n, dtype=bool)
         self.p_stuck = np.zeros(n, dtype=bool)
@@ -251,6 +280,9 @@ class Simulation:
                         f"No consumer can work hard units: largest mouth "
                         f"{biggest_mouth} < hard_min_mouth {cfg.hard_min_mouth}."
                     )
+
+        # When each workload is fully consumed, we stamp the time here.
+        self.workload_done_t = np.full(self.n_wk, np.nan)
 
     def _init_fish(self) -> None:
         cfg = self.cfg
@@ -338,6 +370,13 @@ class Simulation:
             self._eat(dist, ai)
         else:
             self._idle(dt)
+
+        # Stamp the finish time of any workload that just emptied.
+        if self.n_wk > 1:
+            remaining = np.bincount(self.p_workload[self.p_alive], minlength=self.n_wk)
+            newly_done = (remaining == 0) & np.isnan(self.workload_done_t)
+            if newly_done.any():
+                self.workload_done_t[newly_done] = self.t
 
         self.t += dt
         self.steps += 1
@@ -559,12 +598,18 @@ def run_headless(cfg: Config, seed: int | None) -> dict:
     max_steps = int(cfg.max_seconds / cfg.dt)
     while not sim.done and sim.steps < max_steps:
         sim.step()
+    wk = sim.workload_done_t
+    finished = wk[~np.isnan(wk)]
+    # Fairness gap = spread between the first and last workload to finish.
+    spread = float(finished.max() - finished.min()) if finished.size > 1 else 0.0
     return {
         "seed": seed,
         "time": sim.t,
         "steps": sim.steps,
         "remaining": sim.alive_count,
         "completed": sim.done,
+        "workload_times": wk.tolist(),
+        "workload_spread": spread,
     }
 
 
@@ -620,14 +665,16 @@ def benchmark(
     cfg: Config, runs: int, base_seed: int, plot_path: str | None = None
 ) -> None:
     hard_note = f", {cfg.hard_fraction:.0%} hard units" if cfg.hard_fraction > 0 else ""
+    wk_note = f", {cfg.n_workloads} workloads" if cfg.n_workloads > 1 else ""
     print(
-        f"Fish Food benchmark: {runs} run(s), {cfg.n_pellets} pellets{hard_note}, "
-        f"dt={cfg.dt}s, cap={cfg.max_seconds}s\n"
+        f"Fish Food benchmark: {runs} run(s), {cfg.n_pellets} pellets{hard_note}"
+        f"{wk_note}, dt={cfg.dt}s, cap={cfg.max_seconds}s\n"
     )
     print(f"  {'run':>3}  {'seed':>6}  {'time (s)':>9}  {'mm:ss':>6}  status")
     print("  " + "-" * 44)
 
     times: list[float] = []
+    spreads: list[float] = []
     for i in range(runs):
         seed = base_seed + i
         t0 = time.perf_counter()
@@ -642,6 +689,7 @@ def benchmark(
         )
         if res["completed"]:
             times.append(secs)
+            spreads.append(res["workload_spread"])
 
     print("  " + "-" * 44)
     if not times:
@@ -663,6 +711,25 @@ def benchmark(
     print(f"  max    = {max(times):8.2f} s")
     print(f"  spread = {max(times) - min(times):8.2f} s")
     print(f"  CV     = {cv:8.1f} %   (lower = more constant-time)")
+
+    if cfg.n_workloads > 1 and spreads:
+        # Fairness gap = how far apart the first and last workload finish within
+        # a run. Small = the shared pool clears all workloads together; large =
+        # it swarms one workload while others wait.
+        mean_gap = statistics.mean(spreads)
+        print(
+            f"\n  Fairness across {cfg.n_workloads} workloads (per-run gap between"
+            f" first & last finish):\n"
+            f"    mean gap = {mean_gap:7.2f} s  "
+            f"({mean_gap / mean * 100:.0f}% of the total completion time)\n"
+            f"    max gap  = {max(spreads):7.2f} s"
+        )
+        if mean_gap / mean > 0.4:
+            print("    => pooling is UNFAIR: some workloads wait a long time.")
+        elif mean_gap / mean > 0.15:
+            print("    => moderately staggered finishes.")
+        else:
+            print("    => workloads finish close together (fair sharing).")
 
     # Verdict: the whole claim is about LOW variance across random layouts.
     if cv < 8:
@@ -776,6 +843,14 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
     PELLET = (210, 190, 120)
     STUCK = (150, 130, 80)
     HARD = (225, 95, 115)  # "hard" work units (only big consumers can finish)
+    WK_PALETTE = [
+        (210, 190, 120),
+        (130, 200, 150),
+        (150, 180, 235),
+        (225, 175, 120),
+        (200, 150, 220),
+        (130, 205, 205),
+    ]
 
     sim = Simulation(cfg, seed=seed)
     history: list[int] = [sim.alive_count]
@@ -831,8 +906,17 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
             pts = sim.p_pos[present]
             stuck = sim.p_stuck[present]
             hard = sim.p_minmouth[present] > 0
-            for (x, y), st, hd in zip(pts, stuck, hard):
-                col = STUCK if st else (HARD if hd else PELLET)
+            wids = sim.p_workload[present]
+            multi = sim.n_wk > 1
+            for (x, y), st, hd, wid in zip(pts, stuck, hard, wids):
+                if st:
+                    col = STUCK
+                elif hd:
+                    col = HARD
+                elif multi:
+                    col = WK_PALETTE[int(wid) % len(WK_PALETTE)]
+                else:
+                    col = PELLET
                 pygame.draw.circle(screen, col, to_px(x, y), 3 if hd else 2)
 
         # fish
@@ -940,11 +1024,24 @@ def build_config(args) -> Config:
         cfg.max_seconds = args.max_seconds
     if args.hard_fraction is not None:
         cfg.hard_fraction = args.hard_fraction
+    if args.workloads is not None:
+        cfg.n_workloads = args.workloads
     if args.policy is not None:
         cfg.policy = args.policy
     if args.legacy_search:
         cfg.recruit = False
         cfg.ars = False
+    # Search-behavior tuning knobs (for predictability sweeps).
+    if args.recruit_radius is not None:
+        cfg.recruit_radius = args.recruit_radius
+    if args.recruit_recent is not None:
+        cfg.recruit_recent = args.recruit_recent
+    if args.ars_full_turn is not None:
+        cfg.ars_full_turn = args.ars_full_turn
+    if args.ars_lost_turn is not None:
+        cfg.ars_lost_turn = args.ars_lost_turn
+    if args.ars_memory is not None:
+        cfg.ars_memory = args.ars_memory
     return cfg
 
 
@@ -977,6 +1074,13 @@ def main(argv: list[str] | None = None) -> int:
         "models a workload of mixed difficulty",
     )
     p.add_argument(
+        "--workloads",
+        type=int,
+        default=None,
+        help="number of concurrent workloads (separate clumps) sharing the one "
+        "agent pool; reports a fairness gap between first & last to finish",
+    )
+    p.add_argument(
         "--plot",
         type=str,
         default=None,
@@ -994,6 +1098,37 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="disable recruitment + area-restricted search (baseline blind "
         "wandering, for A/B comparison)",
+    )
+    # Search-behavior tuning knobs (sweep these to minimize CV).
+    p.add_argument(
+        "--recruit-radius",
+        type=float,
+        default=None,
+        help="how far idle fish are pulled toward a feeder (m)",
+    )
+    p.add_argument(
+        "--recruit-recent",
+        type=float,
+        default=None,
+        help="seconds a fish counts as 'feeding' after a bite",
+    )
+    p.add_argument(
+        "--ars-full-turn",
+        type=float,
+        default=None,
+        help="wander turn strength just after eating (local search)",
+    )
+    p.add_argument(
+        "--ars-lost-turn",
+        type=float,
+        default=None,
+        help="wander turn strength when long unfed (ballistic)",
+    )
+    p.add_argument(
+        "--ars-memory",
+        type=float,
+        default=None,
+        help="seconds to ramp from local search to dispersal",
     )
     p.add_argument(
         "--theory",
