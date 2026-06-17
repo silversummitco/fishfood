@@ -73,7 +73,18 @@ python3 -m venv .venv
 .venv/bin/python fish_food.py
 ```
 
-Keys: `space` pause · `r` start a fresh random run · `q` / `esc` quit.
+Live controls (the HUD shows the current seed and settings, so runs are
+reproducible):
+
+| key | action |
+|---|---|
+| `space` | pause / resume |
+| `R` | new run with a fresh random seed |
+| `N` | replay the current seed |
+| `[` / `]` | fewer / more concurrent workloads (1–6) |
+| `H` | toggle a 25% hard-unit workload |
+| `A` | toggle staggered arrivals (queue) vs. all-at-once |
+| `Q` / `esc` | quit |
 
 **Headless benchmark** (no window) — runs many seeded sims and reports how
 constant the completion time is:
@@ -133,6 +144,9 @@ several projects at once:
 The benchmark then also reports a **fairness gap**: the per-run time between the
 first and last workload to finish. Small = the pool clears everything together;
 large = it swarms one workload while the others wait.
+
+Add `--staggered` (with `--arrival-interval S`) to make workloads **arrive over
+time** like a real job queue, instead of all at once.
 
 ### Capacity estimate (no simulation)
 
@@ -201,6 +215,14 @@ From 30-run benchmarks at 3000 units (your mileage will vary with parameters):
   clears clumps somewhat sequentially, so the first workload finishes ~20–25% of
   the total time before the last. Pooling a fleet across projects costs you
   per-project predictability even when aggregate throughput is identical.
+- **The best search strategy depends on where the work is.** Recruitment +
+  area-restricted search *help* when leftovers are clumped in one place (a
+  single-workload tail), but *hurt* when work is pre-distributed across several
+  sites: with 6 workloads, turning search off (`--legacy-search`) was both
+  faster (~3:11 vs ~3:28) and more predictable (CV ~15% vs ~18%), because
+  recruitment over-concentrates the pool on one clump instead of covering all
+  six in parallel. There is no single best policy — it depends on the spatial
+  structure of the workload.
 
 These are the kind of results that make the model useful for *planning*: it
 quantifies bottlenecks and the cost of search, and predicts how mixing worker

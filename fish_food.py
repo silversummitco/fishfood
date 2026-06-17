@@ -36,10 +36,11 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 import statistics
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import final
 
 import numpy as np
@@ -84,6 +85,13 @@ class Config:
     # fleet handling several projects at once. Lets you study fairness (do all
     # workloads finish together, or does the pool swarm one and starve others?).
     n_workloads: int = 1
+
+    # Staggered arrivals (off by default, so the classic pond is unchanged).
+    # When on with >1 workload, each workload's clump drops a bit later than the
+    # last - modeling a real queue of jobs arriving over time instead of all at
+    # once. The shared pool clears each as it lands, idling between arrivals.
+    staggered_arrivals: bool = False
+    arrival_interval: float = 8.0  # seconds between successive workload arrivals
 
     # Workload heterogeneity. Default (0.0) is a uniform batch where every unit
     # is one easy bite - the classic pond. Turn this up to model data of mixed
@@ -261,6 +269,10 @@ class Simulation:
         # Pellets appear progressively, so the clump visibly fills up over the
         # first couple of seconds rather than popping in all at once.
         self.p_drop_t = self.rng.random(n) * cfg.drop_window
+        # Optional staggered arrivals: each workload lands later than the last,
+        # modeling a queue of jobs arriving over time.
+        if cfg.staggered_arrivals and k > 1:
+            self.p_drop_t = self.p_drop_t + self.p_workload * cfg.arrival_interval
 
         # Work content: bites remaining to finish a unit, and the minimum
         # consumer mouth size able to work it. Easy units = 1 bite, no minimum.
@@ -827,7 +839,7 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
     pond_px_w = int(cfg.pond_w * scale)
     pond_px_h = int(cfg.pond_h * scale)
     graph_h = 120 if show_graph else 0
-    hud_h = 80
+    hud_h = 112
     win_w = pond_px_w + 2 * pad
     win_h = pond_px_h + 2 * pad + hud_h + graph_h
     screen = pygame.display.set_mode((win_w, win_h))
@@ -852,26 +864,63 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
         (130, 205, 205),
     ]
 
-    sim = Simulation(cfg, seed=seed)
-    history: list[int] = [sim.alive_count]
+    # Mutable, in-window settings the user can change with keys (see below).
+    s_seed = seed if seed is not None else random.randrange(1_000_000)
+    s_workloads = cfg.n_workloads
+    s_hard = cfg.hard_fraction
+    s_staggered = cfg.staggered_arrivals
+
+    def make_sim():
+        live_cfg = replace(
+            cfg,
+            n_workloads=s_workloads,
+            hard_fraction=s_hard,
+            staggered_arrivals=s_staggered,
+        )
+        return live_cfg, Simulation(live_cfg, seed=s_seed)
+
+    live_cfg, sim = make_sim()
     total = cfg.n_pellets
+    history: list[int] = [sim.alive_count]
     paused = False
     finished_at: float | None = None
     running = True
+
+    def fmtk(v: int) -> str:
+        """Compact count: 3000 -> '3.0K', keeps the HUD narrow."""
+        return f"{v / 1000:.1f}K" if v >= 1000 else str(v)
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                k = event.key
+                if k in (pygame.K_ESCAPE, pygame.K_q):
                     running = False
-                elif event.key == pygame.K_SPACE:
+                elif k == pygame.K_SPACE:
                     paused = not paused
-                elif event.key == pygame.K_r:
-                    sim = Simulation(cfg, seed=None)
-                    history = [sim.alive_count]
-                    finished_at = None
+                else:
+                    changed = True
+                    if k == pygame.K_r:  # new random run
+                        s_seed = random.randrange(1_000_000)
+                    elif k == pygame.K_n:  # replay the same seed
+                        pass
+                    elif k == pygame.K_RIGHTBRACKET:  # more workloads
+                        s_workloads = min(6, s_workloads + 1)
+                    elif k == pygame.K_LEFTBRACKET:  # fewer workloads
+                        s_workloads = max(1, s_workloads - 1)
+                    elif k == pygame.K_h:  # toggle hard-unit fraction
+                        s_hard = 0.0 if s_hard > 0 else 0.25
+                    elif k == pygame.K_a:  # toggle staggered arrivals
+                        s_staggered = not s_staggered
+                    else:
+                        changed = False
+                    if changed:
+                        live_cfg, sim = make_sim()
+                        history = [sim.alive_count]
+                        finished_at = None
+                        paused = False
 
         if not paused and not sim.done:
             sim.step()
@@ -939,48 +988,67 @@ def run_visual(cfg: Config, seed: int | None, fps: int, show_graph: bool) -> Non
         eaten = total - sim.alive_count
         secs = sim.t
         mmss = f"{int(secs) // 60}:{int(secs) % 60:02d}"
-        # Top line: the running clock, or the DONE banner once finished.
+        # Line 1: running clock, or the DONE banner once finished.
         if finished_at is not None:
             fmmss = f"{int(finished_at) // 60}:{int(finished_at) % 60:02d}"
-            top_line = big.render(
+            line1 = big.render(
                 f"DONE in {fmmss}  ({finished_at:.1f}s)", True, (120, 240, 150)
             )
         else:
-            top_line = big.render(f"t = {mmss}   ({secs:5.1f}s)", True, (230, 230, 230))
-        screen.blit(top_line, (pad, hud_y))
+            line1 = big.render(f"t = {mmss}   ({secs:5.1f}s)", True, (230, 230, 230))
+        screen.blit(line1, (pad, hud_y))
+        # Line 2: compact work counts.
         screen.blit(
             font.render(
-                f"pellets: {sim.alive_count:4d} left / {eaten:4d} eaten / {total} total",
+                f"work: {fmtk(sim.alive_count)} left / {fmtk(eaten)} done /"
+                f" {fmtk(total)} total",
                 True,
                 (200, 210, 220),
             ),
-            (pad, hud_y + 32),
+            (pad, hud_y + 30),
+        )
+        # Line 3: live settings readout.
+        hard_txt = f"{int(s_hard * 100)}%" if s_hard > 0 else "off"
+        arr_txt = "staggered" if s_staggered else "burst"
+        screen.blit(
+            font.render(
+                f"seed {s_seed}   workloads {s_workloads}   "
+                f"hard {hard_txt}   arrivals {arr_txt}",
+                True,
+                (150, 180, 205),
+            ),
+            (pad, hud_y + 50),
+        )
+        # Line 4: key hints.
+        screen.blit(
+            font.render(
+                "[space] pause   [R] random   [N] replay   [ [ / ] ] workloads   "
+                "[H] hard   [A] arrivals   [Q] quit",
+                True,
+                (120, 150, 170),
+            ),
+            (pad, hud_y + 70),
         )
 
-        # fish-type legend with live eaten counts
-        legend_x = pad + 360
+        # fish-type legend (right side, clear of the text columns)
+        legend_x = win_w - 250
         for i, ft in enumerate(cfg.fish_types):
             mask = sim.f_type == i
             eaten_t = int(sim.f_eaten[mask].sum())
-            pygame.draw.circle(screen, ft.color, (legend_x + 8, hud_y + 8 + i * 18), 6)
+            pygame.draw.circle(screen, ft.color, (legend_x + 6, hud_y + 8 + i * 18), 6)
             screen.blit(
                 font.render(
-                    f"{ft.name:<13} x{ft.count:<3}  ate {eaten_t}",
+                    f"{ft.name:<13} x{ft.count:<3} {fmtk(eaten_t)}",
                     True,
                     (200, 200, 200),
                 ),
-                (legend_x + 22, hud_y + i * 18),
+                (legend_x + 18, hud_y + i * 18),
             )
 
-        if finished_at is not None:
-            screen.blit(
-                font.render("[ R = new run ]", True, (120, 240, 150)),
-                (win_w - 210, hud_y + 32),
-            )
         if paused:
             screen.blit(
-                font.render("PAUSED  [space]", True, (250, 220, 120)),
-                (win_w - 170, hud_y),
+                big.render("PAUSED", True, (250, 220, 120)),
+                (pad + pond_px_w // 2 - 55, pad + 8),
             )
 
         # live "pellets remaining" graph
@@ -1026,6 +1094,10 @@ def build_config(args) -> Config:
         cfg.hard_fraction = args.hard_fraction
     if args.workloads is not None:
         cfg.n_workloads = args.workloads
+    if args.staggered:
+        cfg.staggered_arrivals = True
+    if args.arrival_interval is not None:
+        cfg.arrival_interval = args.arrival_interval
     if args.policy is not None:
         cfg.policy = args.policy
     if args.legacy_search:
@@ -1079,6 +1151,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="number of concurrent workloads (separate clumps) sharing the one "
         "agent pool; reports a fairness gap between first & last to finish",
+    )
+    p.add_argument(
+        "--staggered",
+        action="store_true",
+        help="with >1 workload, workloads arrive over time (a queue) instead of "
+        "all at once",
+    )
+    p.add_argument(
+        "--arrival-interval",
+        type=float,
+        default=None,
+        help="seconds between staggered workload arrivals (with --staggered)",
     )
     p.add_argument(
         "--plot",

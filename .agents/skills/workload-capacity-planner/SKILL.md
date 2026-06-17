@@ -111,6 +111,11 @@ Toggle behaviors to test levers:
 - `--workloads K` — several projects sharing one pool; watch the **fairness
   gap** (pooling keeps aggregate throughput but can starve individual
   workloads). Pooling is free on throughput, not on per-project predictability.
+- `--staggered --arrival-interval S` — workloads arrive over time (a queue),
+  not all at once.
+- Note: the best search strategy depends on the work's spatial structure.
+  Recruitment/ARS help with a clumped single-workload tail but HURT when work
+  is pre-distributed across many sites (try `--legacy-search` for multi-site).
 - `--recruit-radius / --recruit-recent / --ars-*` — search-tuning knobs to
   sweep for lower CV (defaults are already near-optimal; expect a
   speed-vs-predictability tradeoff).
@@ -144,8 +149,8 @@ and **quality/correctness**.
 ## Caveats to repeat to the user
 - Outputs are **structural** unless calibrated with the user's measured rates and
   difficulty mix.
-- It supports **multiple concurrent workloads** sharing one pool (`--workloads`),
-  but they all **arrive at once** - it does not yet model staggered arrivals or
-  per-workload priorities/SLAs.
+- It supports **multiple concurrent workloads** sharing one pool (`--workloads`)
+  with optional **staggered arrivals** (`--staggered`), but does not yet model
+  per-workload priorities/SLAs or preemption.
 - It is **not** a model of set-level/dependency reasoning (e.g. tracing a chain
   of title across documents) and **not** a substitute for quality evaluation.
