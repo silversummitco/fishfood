@@ -248,6 +248,15 @@ sizes affects both speed and predictability.
 All tunable parameters live in the `Config` dataclass at the top of
 `fish_food.py`.
 
+## Math / equations
+
+Fish Food is an agent-based model, so there's no single closed-form `T = f(...)`.
+It's defined precisely at three levels: a closed-form **capacity floor**
+(`T_floor = max(W/R_total, hard_work/R_hard)`, computed by `--theory`), an
+empirical relation (`T_obs ≈ η·T_floor`; predictability `CV = σ_T/μ_T`), and the
+per-step **microdynamics** the simulator integrates. The full derivation, symbol
+table, and update rules are in [`docs/MODEL.md`](docs/MODEL.md).
+
 ## Tuning toward a target time
 
 The completion time and its variance are emergent. The main levers:
