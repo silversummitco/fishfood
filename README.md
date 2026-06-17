@@ -112,6 +112,12 @@ every consumer chases the nearest unit it can work) or `--policy specialist`
 (big consumers prefer hard units, reserving the scarce heavyweight workers for
 the bottleneck).
 
+**Search behavior** is on by default and is the biggest lever on predictability:
+*recruitment* (idle fish drift toward fish that are actively feeding) and
+*area-restricted search* (turn tightly right after a find, go ballistic when
+unfed). Use `--legacy-search` to turn both off and reproduce the old blind
+wandering for comparison. (Knobs: `recruit*`, `ars*` in `Config`.)
+
 ### Capacity estimate (no simulation)
 
 For an instant, compute-free sanity check, print an analytic floor on the
@@ -157,11 +163,22 @@ From 30-run benchmarks at 3000 units (your mileage will vary with parameters):
 - The capacity estimate shows real runs sit at only **~7–13% utilization**, i.e.
   an **~8–14× travel/search overhead** over the theoretical floor. The system is
   *search-limited*, not *capacity-limited*.
-- A naive **specialist** routing policy did **not** help (slightly worse in a
-  small test) — consistent with the above: prioritizing *which* unit to grab
-  doesn't reduce the time spent *finding* scattered units. The next lever is
-  reducing search overhead (e.g. recruitment/clustering, or larger sense range
-  for the heavyweight workers), not task selection.
+- A naive **specialist** routing policy did **not** help — consistent with the
+  above: prioritizing *which* unit to grab doesn't reduce the time spent
+  *finding* scattered units.
+- **Attacking search *did* help.** Adding *recruitment* + *area-restricted
+  search* (now the default) roughly **halves completion-time variance** in both
+  regimes at little cost to the mean:
+
+  | workload | legacy CV | maximized CV |
+  |---|---|---|
+  | uniform (1000 units) | ~19% | ~12% |
+  | mixed (1000 units, 25% hard) | ~23% | ~11% |
+
+  The mean barely moves (it's capacity-bound by the big consumers), but the
+  unlucky scattered-tail runs catch up to the typical ones — which is exactly
+  the "gone in about the same time" property the project is named for. Reducing
+  *search*, not changing *task selection*, is the lever.
 
 These are the kind of results that make the model useful for *planning*: it
 quantifies bottlenecks and the cost of search, and predicts how mixing worker
@@ -180,7 +197,9 @@ sizes affects both speed and predictability.
   mouth/eat radius, sense radius, wake push, eat cooldown, lifetime eat cap,
   draw size, color). Fish doze at first, then **wake** (on a staggered timer or
   when food drifts near them), chase the nearest sensed pellet, otherwise wander,
-  and eat within mouth range when their cooldown allows.
+  and eat within mouth range when their cooldown allows. Idle fish are
+  **recruited** toward active feeders and use **area-restricted search** (local
+  after a find, ballistic when unfed) to cut wasted searching.
 
 All tunable parameters live in the `Config` dataclass at the top of
 `fish_food.py`.

@@ -96,6 +96,20 @@ class Config:
     policy: str = "greedy"
     specialist_bias: float = 5.0  # how strongly big consumers avoid easy units (m)
 
+    # Search behavior - the lever that attacks the travel/search overhead.
+    # Recruitment: idle searchers drift toward fish that are actively feeding
+    # (like a school converging on a feeding frenzy), concentrating effort
+    # where work actually is instead of wandering blindly.
+    recruit: bool = True
+    recruit_radius: float = 1.3  # idle fish steer toward a feeder within this (m)
+    recruit_recent: float = 0.6  # a fish counts as "feeding" if it ate this recently
+    # Area-restricted search: turn sharply right after eating (stay in the patch),
+    # straighten out into ballistic dispersal when food hasn't been found lately.
+    ars: bool = True
+    ars_full_turn: float = 1.2  # wander turn strength just after a find (local)
+    ars_lost_turn: float = 0.12  # wander turn strength when long unfed (ballistic)
+    ars_memory: float = 6.0  # seconds to ramp from local search to dispersal
+
     # Pump: a fixed point pushing water (and pellets) gently outward
     pump_pos: tuple[float, float] = (3.0, 2.0)  # defaults to center
     pump_radius: float = 0.6
@@ -277,6 +291,9 @@ class Simulation:
         self.f_cool_timer = np.zeros(m)  # time until this fish may bite
         self.f_eaten = np.zeros(m, dtype=int)  # lifetime pellets eaten
         self.f_wander = ang.copy()  # current wander heading
+        # Time since this fish last took a bite (drives area-restricted search
+        # and recruitment). Starts "long ago" so nobody is locally searching yet.
+        self.f_since_ate = np.full(m, 1e3)
         # Each fish wakes after its own staggered delay (or sooner if food
         # drifts within alert_radius - see step()).
         self.f_wake_t = cfg.settle_seconds + self.rng.random(m) * cfg.wake_spread
@@ -340,6 +357,7 @@ class Simulation:
         M = self.f_pos.shape[0]
 
         awake = self.f_awake
+        self.f_since_ate += dt  # ages every fish's "time since last bite"
 
         # nearest sensed pellet this fish can actually work (within sense range
         # AND big enough mouth for the unit's difficulty), per fish
@@ -360,9 +378,35 @@ class Simulation:
         tgt_dist = dist[np.arange(M), nearest][:, None]
         tgt_dir = np.where(tgt_dist > 1e-9, tgt_off / np.maximum(tgt_dist, 1e-9), 0.0)
 
-        # wander: heading does a small random walk
-        self.f_wander += self.rng.normal(0.0, 0.6, M) * 0.15
+        # wander: heading does a random walk. Under area-restricted search the
+        # turn strength depends on how long since this fish last ate: turn hard
+        # right after a find (stay in the patch), straighten out into ballistic
+        # dispersal when food has been scarce (cover new ground).
+        if cfg.ars:
+            frac = np.clip(self.f_since_ate / cfg.ars_memory, 0.0, 1.0)
+            turn_mag = cfg.ars_full_turn * (1.0 - frac) + cfg.ars_lost_turn * frac
+        else:
+            turn_mag = 0.6
+        self.f_wander += self.rng.normal(0.0, 1.0, M) * turn_mag * 0.15
         wander_dir = np.stack([np.cos(self.f_wander), np.sin(self.f_wander)], axis=1)
+
+        # recruitment: idle searchers drift toward the nearest actively-feeding
+        # fish, concentrating effort where work is instead of wandering blindly.
+        if cfg.recruit:
+            feeding = self.f_since_ate < cfg.recruit_recent
+            searching = awake & (~has_target) & (~feeding)
+            if feeding.any() and searching.any():
+                f_idx = np.where(feeding)[0]
+                s_idx = np.where(searching)[0]
+                dvec = self.f_pos[f_idx][None, :, :] - self.f_pos[s_idx][:, None, :]
+                dd = np.sqrt(np.einsum("skc,skc->sk", dvec, dvec))
+                nn = np.argmin(dd, axis=1)
+                rows = np.arange(s_idx.size)
+                nd = dd[rows, nn]
+                close = nd < cfg.recruit_radius
+                if close.any():
+                    toward = dvec[rows, nn] / np.maximum(nd[:, None], 1e-9)
+                    wander_dir[s_idx[close]] = toward[close]
 
         desired_dir = np.where(has_target[:, None], tgt_dir, wander_dir)
         desired_vel = desired_dir * self.f_speed[:, None]
@@ -499,6 +543,7 @@ class Simulation:
             self.p_bites[pellet] -= 1.0
             self.f_eaten[m] += 1  # counts work done (bites), feeds the eat cap
             self.f_cool_timer[m] = self.f_cooldown[m]
+            self.f_since_ate[m] = 0.0  # just fed: search locally / recruit others
             if self.p_bites[pellet] <= 0.0:
                 self.p_alive[pellet] = False
 
@@ -897,6 +942,9 @@ def build_config(args) -> Config:
         cfg.hard_fraction = args.hard_fraction
     if args.policy is not None:
         cfg.policy = args.policy
+    if args.legacy_search:
+        cfg.recruit = False
+        cfg.ars = False
     return cfg
 
 
@@ -940,6 +988,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="scheduling policy: 'greedy' (default) or 'specialist' "
         "(big consumers prefer hard units)",
+    )
+    p.add_argument(
+        "--legacy-search",
+        action="store_true",
+        help="disable recruitment + area-restricted search (baseline blind "
+        "wandering, for A/B comparison)",
     )
     p.add_argument(
         "--theory",
