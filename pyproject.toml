@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fishfood"
+version = "0.1.0"
+description = "Fish Food - an agent-based model of constant-time batch consumption by a heterogeneous agent pool."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "PolyForm-Noncommercial-1.0.0" }
+authors = [{ name = "SilverSummitCo LLC" }]
+keywords = ["agent-based-model", "simulation", "queueing", "capacity-planning", "scheduling"]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+visual = ["pygame"]   # live pygame window
+render = ["pillow"]   # GIF / PNG rendering
+all = ["pygame", "pillow"]
+
+[project.urls]
+Homepage = "https://github.com/silversummitco/fishfood"
+
+[project.scripts]
+fishfood = "fish_food:main"
+
+# Flat single-module layout: the engine is fish_food.py, the GIF tool render_gif.py.
+[tool.setuptools]
+py-modules = ["fish_food", "render_gif"]
