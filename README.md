@@ -145,6 +145,10 @@ still cluster, which is the result the project exists to demonstrate.
 
 From 30-run benchmarks at 3000 units (your mileage will vary with parameters):
 
+| | uniform (0% hard) | mixed (25% hard) |
+|---|---|---|
+| completion-time distribution | ![easy](docs/hist_easy.png) | ![hard](docs/hist_hard.png) |
+
 - **Uniform batch (0% hard):** mean ~3:22, **CV ~17%**.
 - **Mixed batch (25% hard):** mean ~10:07, **CV ~17%**.
 - Difficulty-gating a quarter of the work to the 6 big consumers **tripled the
